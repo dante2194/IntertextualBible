@@ -1,0 +1,41 @@
+name: Build APK
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+env:
+  PACK_TAG: pack-v1
+  APK_NAME: IntertextualBible.apk
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+      - name: Fetch offline pack into assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p app/src/main/assets
+          gh release download "$PACK_TAG" --pattern pack.zip --dir app/src/main/assets --clobber
+          ls -lh app/src/main/assets
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+      - name: Publish APK to Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp app/build/outputs/apk/debug/*.apk "$APK_NAME"
+          ls -lh "$APK_NAME"
+          gh release create "build-${{ github.run_number }}" "$APK_NAME" \
+            --target "${{ github.sha }}" \
+            --title "Intertextual Bible build ${{ github.run_number }}" \
+            --notes "Debug APK, built by GitHub Actions."
